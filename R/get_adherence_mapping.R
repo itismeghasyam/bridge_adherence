@@ -16,7 +16,7 @@ bridgeclient::bridge_login(
 #' output reference in synapse
 OUTPUT_REF <- list(
     filename = "bridge_mtb_adherence_eventStream.tsv",
-    parent_id = "syn20816722",
+    parent_id = "syn26253351",
     git_url = "https://github.com/Sage-Bionetworks/bridge_adherence/blob/main/R/get_adherence_mapping.R"
 )
 
@@ -79,10 +79,16 @@ get_adherence_metadata <- function(data){
                     tibble::enframe() %>% 
                     dplyr::filter(name != "dayRangeOfAllStreams",
                                   name != "streams") %>%
-                    tidyr::spread(name, value) %>% 
-                    dplyr::rowwise() %>%
-                    dplyr::mutate_all(unlist) %>% 
-                    dplyr::ungroup()})) %>%
+                    tidyr::spread(name, value) %>%
+                    as.data.frame() %>% 
+                    purrr::flatten() %>% 
+                    as.data.frame()
+                    # dplyr::rowwise() %>%
+                    # dplyr::mutate_all(unlist) %>%
+                    # dplyr::ungroup()
+                    
+                    
+                    })) %>%
         tidyr::unnest(adherence_metadata)
 }
 
