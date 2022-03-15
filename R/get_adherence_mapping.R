@@ -130,6 +130,11 @@ get_adherence_streams <- function(data){
 main <- function(){
     #' get adherence 
     adherence_mapping <- get_studies_mapping() %>%
+        dplyr::filter(study_id %in% c(
+            'cxhnxd', # WUSTL Mobile Toolbox 
+            'htshxm', # HNRP Mobile Toolbox
+            'fmqcjv' # Mobile Toolbox Study 
+        )) %>% 
         get_user_enrollments() %>% 
         get_user_ids() %>%
         get_adherence() %>% 
