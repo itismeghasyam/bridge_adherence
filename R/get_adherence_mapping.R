@@ -43,15 +43,16 @@ get_user_enrollments <- function(data){
             study_id, bridgeclient::get_all_enrollments))
 }
 
-#' Function to get user IDs of enrollment
+#' Function to get userID and externalIDs of enrollment
 #' @param data dataframe with enrollment API return
-#' @return return mapped user id
+#' @return return mapped user id and externalId
 get_user_ids <- function(data){
     data %>% 
         dplyr::mutate(user_ids = purrr::map(enrollments, function(enrollment){
             enrollment %>% 
                 purrr::map_dfr(function(x){
-                    tibble::tibble(user_id = x$participant$identifier)
+                    tibble::tibble(user_id = x$participant$identifier,
+                                   external_id = x$externalId)
                 })
         })) %>% 
         tidyr::unnest(user_ids, names_repair = "minimal")
@@ -131,6 +132,7 @@ main <- function(){
     adherence_mapping <- get_studies_mapping() %>%
         get_user_enrollments() %>% 
         get_user_ids() %>%
+        get_external_ids() %>% 
         get_adherence() %>% 
         get_adherence_metadata() %>% 
         get_adherence_streams() %>% 
