@@ -132,7 +132,6 @@ main <- function(){
     adherence_mapping <- get_studies_mapping() %>%
         get_user_enrollments() %>% 
         get_user_ids() %>%
-        get_external_ids() %>% 
         get_adherence() %>% 
         get_adherence_metadata() %>% 
         get_adherence_streams() %>% 
