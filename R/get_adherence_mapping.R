@@ -1,12 +1,16 @@
 ###########################################
 #' Script to get adherence mapping of a study
-#' Author: aryton.tediarjo@sagebase.org
+#' Author: aryton.tediarjo@sagebase.org, meghasyam@sagebase.org
 ##########################################
 library(bridgeclient)
 library(synapser)
 library(tidyverse)
 source("R/bridge_helpers.R")
 synapser::synLogin()
+
+
+### Get adherance per date (with datetime)
+
 
 #' log in to bridge using bridgeclient
 bridgeclient::bridge_login(
@@ -127,33 +131,122 @@ get_adherence_streams <- function(data){
     })
 }
 
-main <- function(){
-    #' get adherence 
-    adherence_mapping <- get_studies_mapping() %>%
-        dplyr::filter(study_id %in% c(
-            'cxhnxd', # WUSTL Mobile Toolbox 
-            'htshxm', # HNRP Mobile Toolbox
-            'fmqcjv' # Mobile Toolbox Study 
-        )) %>% 
-        get_user_enrollments() %>% 
-        get_user_ids() %>%
-        get_adherence() %>% 
-        get_adherence_metadata() %>% 
-        get_adherence_streams() %>% 
-        dplyr::select(-type, -enrollments, -adherence) %>% 
-        readr::write_tsv(OUTPUT_REF$filename)
-    
-    #' save to synapse
-    file <- synapser::File(OUTPUT_REF$filename, 
-                          parent = OUTPUT_REF$parent_id)
-    
-    activity <- synapser::Activity(
-        executed = OUTPUT_REF$git_url,
-        name = "fetch bridge data",
-        description = "normalize Bridge Adherence eventStreams"
-    )
-    synStore(file, activity = activity)
-    unlink(OUTPUT_REF$filename)
-}
 
-main()
+### Get all studies and subset to studies we want
+study_list <- get_studies_mapping() %>%
+    dplyr::filter(study_id %in% c(
+        'cxhnxd', # WUSTL Mobile Toolbox 
+        'htshxm', # HNRP Mobile Toolbox
+        'fmqcjv' # Mobile Toolbox Study 
+    )) 
+
+### Get user enrollments in studies and user 
+study_user_ids <- study_list %>% 
+    get_user_enrollments() %>% 
+    get_user_ids()
+
+### User activity per user
+# sub_id <- study_user_ids %>% 
+#     dplyr::filter(user_id == '24ftAlI1NGgQWjRqo27lUKpP')
+
+user_activity <- study_user_ids %>% 
+    dplyr::select(study_id, user_id) %>% 
+    unique() 
+
+user_activity_temp <- apply(user_activity,1,function(x){
+    curr_activity <- bridgeclient_get_activityevents(x[['study_id']], x[['user_id']])
+    curr_activity_df <-  curr_activity$items %>%
+        data.table::rbindlist(fill=TRUE) %>% 
+        dplyr::mutate(user_id = x[['user_id']]) %>% 
+        dplyr::select(eventId, user_id) %>% 
+        dplyr::mutate(val = T) %>% 
+        tidyr::spread(eventId,val)
+    
+    # curr_activity_df[is.na(curr_activity_df)] <- FALSE
+    
+    return(curr_activity_df)
+}) %>% data.table::rbindlist(fill = T)
+
+### add a column for session start -> is their sum of all assessment type columns >0 ??
+assesment_cols <- colnames(user_activity_temp)[grepl('assessment', colnames(user_activity_temp))]
+
+user_activity_temp <- user_activity_temp %>% 
+    dplyr::rowwise() %>% 
+    dplyr::mutate(nAssessmentsDone = sum(c_across(all_of(assesment_cols)), na.rm = T )) %>% 
+    dplyr::ungroup()
+
+### save to synapse
+readr::write_tsv(user_activity_temp, 'bridge_mtb_assessments.tsv')
+file <- synapser::File('bridge_mtb_assessments.tsv', 
+                       parent = OUTPUT_REF$parent_id)
+
+activity <- synapser::Activity(
+    # executed = OUTPUT_REF$git_url,
+    # name = "fetch bridge data",
+    description = "Get assessments completion details from Bridge Activity events"
+)
+synStore(file, activity = activity)
+unlink('bridge_mtb_assessments.tsv')
+
+
+### Get adherence record per user
+user_adherence <- sub_id %>% 
+    get_adherence()
+
+### Get adherence metadata and streams
+user_adherence_metadata <- user_adherence %>% 
+    get_adherence_metadata() %>% 
+    get_adherence_streams() %>% 
+    dplyr::select(-enrollments)
+
+### Write required columns to output
+main_output <- user_adherence_metadata %>% 
+    dplyr::select(-type, -enrollments, -adherence)
+
+readr::write_tsv(main_output,OUTPUT_REF$filename)
+
+
+
+### save to synapse
+file <- synapser::File(OUTPUT_REF$filename, 
+                       parent = OUTPUT_REF$parent_id)
+
+activity <- synapser::Activity(
+    executed = OUTPUT_REF$git_url,
+    name = "fetch bridge data",
+    description = "normalize Bridge Adherence eventStreams"
+)
+synStore(file, activity = activity)
+unlink(OUTPUT_REF$filename)
+
+
+#' main <- function(){
+#'     #' get adherence 
+#'     adherence_mapping <- get_studies_mapping() %>%
+#'         dplyr::filter(study_id %in% c(
+#'             'cxhnxd', # WUSTL Mobile Toolbox 
+#'             'htshxm', # HNRP Mobile Toolbox
+#'             'fmqcjv' # Mobile Toolbox Study 
+#'         )) %>% 
+#'         get_user_enrollments() %>% 
+#'         get_user_ids() %>%
+#'         get_adherence() %>% 
+#'         get_adherence_metadata() %>% 
+#'         get_adherence_streams() %>% 
+#'         dplyr::select(-type, -enrollments, -adherence) %>% 
+#'         readr::write_tsv(OUTPUT_REF$filename)
+#'     
+#'     #' save to synapse
+#'     file <- synapser::File(OUTPUT_REF$filename, 
+#'                           parent = OUTPUT_REF$parent_id)
+#'     
+#'     activity <- synapser::Activity(
+#'         executed = OUTPUT_REF$git_url,
+#'         name = "fetch bridge data",
+#'         description = "normalize Bridge Adherence eventStreams"
+#'     )
+#'     synStore(file, activity = activity)
+#'     unlink(OUTPUT_REF$filename)
+#' }
+#' 
+#' main()
