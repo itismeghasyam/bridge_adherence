@@ -150,15 +150,17 @@ study_user_ids <- study_list %>%
 #     dplyr::filter(user_id == '24ftAlI1NGgQWjRqo27lUKpP')
 
 user_activity <- study_user_ids %>% 
-    dplyr::select(study_id, user_id) %>% 
+    dplyr::select(study_id, user_id, external_id) %>% 
     unique() 
 
 user_activity_temp <- apply(user_activity,1,function(x){
     curr_activity <- bridgeclient_get_activityevents(x[['study_id']], x[['user_id']])
     curr_activity_df <-  curr_activity$items %>%
         data.table::rbindlist(fill=TRUE) %>% 
-        dplyr::mutate(user_id = x[['user_id']]) %>% 
-        dplyr::select(eventId, user_id) %>% 
+        dplyr::mutate(user_id = x[['user_id']],
+                      # study_id = x[['study_id']],
+                      external_id = x[['external_id']]) %>% 
+        dplyr::select(eventId, user_id, external_id) %>% 
         dplyr::mutate(val = T) %>% 
         tidyr::spread(eventId,val)
     
