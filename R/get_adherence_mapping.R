@@ -6,7 +6,7 @@ library(bridgeclient)
 library(synapser)
 library(tidyverse)
 source("R/bridge_helpers.R")
-synapser::synLogin()
+synapser::synLogin("sonia.carlson@sagebase.org","!MilkBBBone1")
 
 
 ### Get adherance per date (with datetime)
@@ -26,16 +26,23 @@ OUTPUT_REF <- list(
 
 #' Function to get studies mapping
 #' @return bridge study name and their id 
-get_studies_mapping <- function(){
-    bridgeclient_get_studies() %>%
-        .$items %>% 
-        purrr::map_dfr(function(x){
-            tibble::tibble(
-                name = x$name, 
-                id = x$id)}) %>%
-        dplyr::select(
-            study_name = name,
-            study_id = id)
+get_studies_mapping <- function(maxOffset = 100){
+    
+    offset_list = seq(0,maxOffset,100)
+    
+    study_list <- lapply(offset_list, function(offset_){
+        print(offset_)
+        bridgeclient_get_studies(offset = as.numeric(offset_)) %>%
+            .$items %>% 
+            purrr::map_dfr(function(x){
+                tibble::tibble(
+                    name = x$name, 
+                    id = x$id)}) %>%
+            dplyr::select(
+                study_name = name,
+                study_id = id)
+    }) %>% data.table::rbindlist(fill = T)
+    
 }
 
 #' Function to get user enrollments using study id
@@ -133,11 +140,12 @@ get_adherence_streams <- function(data){
 
 
 ### Get all studies and subset to studies we want
-study_list <- get_studies_mapping() %>%
+study_list <- get_studies_mapping(maxOffset = 100) %>%
     dplyr::filter(study_id %in% c(
         'cxhnxd', # WUSTL Mobile Toolbox 
         'htshxm', # HNRP Mobile Toolbox
-        'fmqcjv' # Mobile Toolbox Study 
+        'hktrrx', # The Mobile Toolbox for Monitoring Cognitive Function
+        'pmbfzc' # Emory Healthy Aging Study
     )) 
 
 ### Get user enrollments in studies and user 
@@ -192,7 +200,7 @@ unlink('bridge_mtb_assessments.tsv')
 
 
 ### Get adherence record per user
-user_adherence <- sub_id %>% 
+user_adherence <- study_user_ids %>% 
     get_adherence()
 
 ### Get adherence metadata and streams
