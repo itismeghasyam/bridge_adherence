@@ -6,7 +6,7 @@ library(bridgeclient)
 library(synapser)
 library(tidyverse)
 source("R/bridge_helpers.R")
-synapser::synLogin("sonia.carlson@sagebase.org","!MilkBBBone1")
+synapser::synLogin()
 
 
 ### Get adherance per date (with datetime)
